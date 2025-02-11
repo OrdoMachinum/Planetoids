@@ -1,6 +1,8 @@
 #include <raylib.h>
 #include <raymath.h>
 
+#include <cstdio>
+
 #include "game.h"
 #include "solarconstants.h"
 #include "worldvector.h"
@@ -27,11 +29,11 @@ bool Game::Initialize()
     m_camera.zoom = 7.e-7f;
     m_camera.offset.x = m_scrWidth/2;
     m_camera.offset.y = m_scrHeight/2;
-
+Vector2 delta = GetMouseDelta();
 
     // Example earth-moon system
     AddCelestial({0,0,VectorCoordinateSystem::Cartesian2d},{0.f, 0.f, VectorCoordinateSystem::Cartesian2d}, M_EARTH, R_EARTH);
-    AddCelestial({0,D_EARTH_MOON,VectorCoordinateSystem::Cartesian2d},{V_MOON, 0.f, VectorCoordinateSystem::Cartesian2d}, 2.*M_MOON, R_MOON);
+    AddCelestial({0,D_EARTH_MOON,VectorCoordinateSystem::Cartesian2d},{V_MOON, 0.f, VectorCoordinateSystem::Cartesian2d}, 5.*M_MOON, R_MOON);
     AddCelestial({0,-D_EARTH_MOON,VectorCoordinateSystem::Cartesian2d},{-V_MOON, 0.f, VectorCoordinateSystem::Cartesian2d}, M_MOON, R_MOON);
 
 
@@ -64,7 +66,13 @@ void Game::GenerateOutput()
     EndDrawing();
 }
 
-void Game::AddCelestial(const WorldVector & position, const WorldVector & velocity, const float mass, const float radius, const std::string & name, const Color & color)
+void Game::AddCelestial(
+    const WorldVector & position,
+    const WorldVector & velocity,
+    const float mass,
+    const float radius,
+    const std::string & name,
+    const Color & color)
 {
     m_system.push_back({position, velocity, mass, radius});
     m_sysView.push_back({name, color});
@@ -95,6 +103,14 @@ void Game::DrawUI()
 
 void Game::CalcGravityMatrix()
 {
+    // For optimamalizing the gravitational force calculations, we use the Newton3 here
+    // and collect the common forces in to a skew-symmetric matrix
+    // As F_12 = -F_21
+    //
+    //  0       F_01   F_02
+    // -F_01    0      F_12
+    // -F_02   -F_12   0
+
     for (size_t i = 0u; i < m_system.size(); ++i) {
         for (size_t j = i+1; j < m_system.size(); ++j) {
             m_gravityMatrix[i][j] = ForceGrav_ij(i,j);
@@ -107,12 +123,14 @@ void Game::PrintGravityMatrix()
 {
     for (size_t i = 0u; i < m_system.size(); ++i) {
         for (size_t j = 0; j < m_system.size(); ++j) {
-            std::cout << m_gravityMatrix[i][j].q2 << "\t";
+            //std::cout << m_gravityMatrix[i][j].q2 << "\t";
+            printf("%+2.2e ", m_gravityMatrix[i][j].q2);
         }
+        printf("\n");
+        //std::cout << "\n";
 
-        std::cout << "\n";
     }
-    std::cout << std::endl;
+    printf("\n");
 }
 
 
@@ -159,9 +177,17 @@ void Game::ProcessInput()
         m_camera.zoom *= exp(mWheel/15.75f);
     }
 
-
-
     // Process model related inputs
+
+
+    if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)) {
+
+        Vector2 PointerInModelWorld {GetScreenToWorld2D(GetMousePosition(), m_camera)};
+        WorldVector newPlanetLoc{PointerInModelWorld.x, PointerInModelWorld.y, VectorCoordinateSystem::Cartesian2d};
+        AddCelestial(newPlanetLoc,{-V_MOON, 0.f, VectorCoordinateSystem::Cartesian2d}, M_MOON, R_MOON);
+    }
+
+
 }
 
 void Game::UpdateGameWorld()

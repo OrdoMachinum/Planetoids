@@ -3,7 +3,7 @@
 int main(int argc, char ** argv)
 {
 
-    Game game{"RaylibTest", 1024,768};
+    Game game{"Planetoids++", 1024,768};
 
 
     if (!game.Initialize()) {
